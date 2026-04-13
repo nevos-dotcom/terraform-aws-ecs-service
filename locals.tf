@@ -26,16 +26,8 @@ locals {
   }
 
   # SQS Autoscaling queue name resolution
-  sqs_out_queue = coalesce(
-    try(var.sqs_autoscaling.scale_out_queue_name, null),
-    try(var.sqs_autoscaling.queue_name, null),
-    ""
-  )
-  sqs_in_queue = coalesce(
-    try(var.sqs_autoscaling.scale_in_queue_name, null),
-    try(var.sqs_autoscaling.queue_name, null),
-    ""
-  )
+  sqs_out_queue = var.sqs_autoscaling.scale_out_queue_name != null ? var.sqs_autoscaling.scale_out_queue_name : (var.sqs_autoscaling.queue_name != null ? var.sqs_autoscaling.queue_name : "unused")
+  sqs_in_queue  = var.sqs_autoscaling.scale_in_queue_name != null ? var.sqs_autoscaling.scale_in_queue_name : (var.sqs_autoscaling.queue_name != null ? var.sqs_autoscaling.queue_name : "unused")
 
   # SQS Autoscaling defaults (hardcoded module best practices)
   sqs_require_empty_for_scale_in = coalesce(try(var.sqs_autoscaling.require_empty_for_scale_in, null), false)
