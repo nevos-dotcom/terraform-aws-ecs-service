@@ -290,11 +290,12 @@ variable "sqs_autoscaling" {
   })
 
   validation {
-    condition = !var.sqs_autoscaling.enabled || (
+    condition = !var.sqs_autoscaling.enabled || try(
       var.sqs_autoscaling.max_replicas != null &&
       var.sqs_autoscaling.min_replicas != null &&
       var.sqs_autoscaling.max_replicas >= var.sqs_autoscaling.min_replicas &&
-      var.sqs_autoscaling.min_replicas >= 0
+      var.sqs_autoscaling.min_replicas >= 0,
+      false
     )
     error_message = "When sqs_autoscaling is enabled, min_replicas and max_replicas must be set, with max_replicas >= min_replicas >= 0."
   }
@@ -308,11 +309,12 @@ variable "sqs_autoscaling" {
   }
 
   validation {
-    condition = !var.sqs_autoscaling.enabled || (
+    condition = !var.sqs_autoscaling.enabled || try(
       var.sqs_autoscaling.scale_out_age_seconds != null &&
       var.sqs_autoscaling.scale_in_age_seconds != null &&
       var.sqs_autoscaling.scale_out_age_seconds > var.sqs_autoscaling.scale_in_age_seconds &&
-      var.sqs_autoscaling.scale_in_age_seconds >= 0
+      var.sqs_autoscaling.scale_in_age_seconds >= 0,
+      false
     )
     error_message = "When sqs_autoscaling is enabled, scale_out_age_seconds and scale_in_age_seconds must be set, with scale_out_age_seconds > scale_in_age_seconds >= 0."
   }
