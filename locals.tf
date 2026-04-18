@@ -1,4 +1,10 @@
 locals {
+  # Common tags applied to all taggable resources
+  common_tags = merge(
+    { Application = var.ecs_service_name },
+    var.tags
+  )
+
   # Validation: Fargate requires awsvpc network mode
   validate_fargate_network_mode = (
     var.ecs_launch_type != "FARGATE" || var.network_mode == "awsvpc"

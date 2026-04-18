@@ -1,6 +1,7 @@
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
   name              = "/ecs/${data.aws_ecs_cluster.ecs_cluster.cluster_name}/${var.ecs_service_name}"
   retention_in_days = var.log_retention_days
+  tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_anomaly_detector" "this" {
@@ -11,6 +12,7 @@ resource "aws_cloudwatch_log_anomaly_detector" "this" {
   anomaly_visibility_time = var.log_anomaly_detection.anomaly_visibility_time
   filter_pattern          = var.log_anomaly_detection.filter_pattern != "" ? var.log_anomaly_detection.filter_pattern : null
   enabled                 = true
+  tags                    = local.common_tags
 }
 
 resource "aws_alb_target_group" "target_group" {
@@ -28,9 +30,7 @@ resource "aws_alb_target_group" "target_group" {
       cookie_duration = var.application_load_balancer.stickiness_ttl
       cookie_name     = var.application_load_balancer.cookie_name
       type            = var.application_load_balancer.stickiness_type
-
     }
-
   }
 
   health_check {
@@ -43,7 +43,9 @@ resource "aws_alb_target_group" "target_group" {
     unhealthy_threshold = var.application_load_balancer.health_check_threshold_unhealthy
     port                = var.application_load_balancer.health_check_port
   }
+
   depends_on = [aws_alb_target_group.target_group_additional]
+  tags       = local.common_tags
 }
 
 resource "aws_alb_target_group" "target_group_additional" {
@@ -58,6 +60,7 @@ resource "aws_alb_target_group" "target_group_additional" {
   vpc_id               = var.vpc_id
   target_type          = "ip"
   deregistration_delay = each.value.deregister_deregistration_delay
+
   dynamic "stickiness" {
     for_each = each.value.stickiness ? [1] : []
     content {
@@ -65,7 +68,6 @@ resource "aws_alb_target_group" "target_group_additional" {
       cookie_name     = each.value.cookie_name
       type            = each.value.stickiness_type
     }
-
   }
 
   health_check {
@@ -78,6 +80,8 @@ resource "aws_alb_target_group" "target_group_additional" {
     unhealthy_threshold = each.value.health_check_threshold_unhealthy
     port                = each.value.health_check_port
   }
+
+  tags = local.common_tags
 }
 
 ########################
@@ -138,6 +142,7 @@ resource "aws_lb_listener_rule" "rule" {
   }
 
   depends_on = [aws_alb_target_group.target_group, aws_lb_listener_rule.rule_additional, aws_alb_target_group.target_group_additional]
+  tags       = local.common_tags
 }
 
 
@@ -198,6 +203,7 @@ resource "aws_lb_listener_rule" "rule_additional" {
   }
 
   depends_on = [aws_alb_target_group.target_group_additional]
+  tags       = local.common_tags
 }
 
 ########################
@@ -215,6 +221,8 @@ resource "aws_lb_listener" "tcp_listener" {
     type             = "forward"
     target_group_arn = aws_alb_target_group.target_group[0].arn
   }
+
+  tags = local.common_tags
 }
 
 resource "aws_lb_listener" "tcp_listener_additional" {
@@ -233,6 +241,7 @@ resource "aws_lb_listener" "tcp_listener_additional" {
   }
 
   depends_on = [aws_alb_target_group.target_group_additional]
+  tags       = local.common_tags
 }
 
 ########################
@@ -248,6 +257,7 @@ resource "aws_ecs_task_definition" "task_definition" {
   task_role_arn            = var.initial_role != "" ? var.initial_role : null
   execution_role_arn       = var.initial_role != "" ? var.initial_role : null
   container_definitions    = local.container_definitions_json
+  tags                     = local.common_tags
 
   lifecycle {
     ignore_changes = all
@@ -284,6 +294,7 @@ resource "aws_ecs_service" "ecs_service" {
       assign_public_ip = var.assign_public_ip
     }
   }
+
   dynamic "alarms" {
     for_each = var.deployment.cloudwatch_alarm_enabled ? [1] : []
     content {
@@ -292,6 +303,7 @@ resource "aws_ecs_service" "ecs_service" {
       rollback    = var.deployment.cloudwatch_alarm_rollback
     }
   }
+
   dynamic "load_balancer" {
     for_each = var.application_load_balancer.enabled && var.application_load_balancer.action_type == "forward" ? [1] : []
     content {
@@ -300,6 +312,7 @@ resource "aws_ecs_service" "ecs_service" {
       container_port   = var.application_load_balancer.container_port
     }
   }
+
   dynamic "capacity_provider_strategy" {
     for_each = var.capacity_provider_strategy != "" ? [1] : []
     content {
@@ -376,16 +389,15 @@ resource "aws_ecs_service" "ecs_service" {
       }
     }
   }
-  tags = merge(
-    { Application = "${var.ecs_service_name}" },
-    var.tags
-  )
 
+  tags = local.common_tags
 
   lifecycle {
     ignore_changes = [task_definition, platform_version, desired_count, service_connect_configuration.0.namespace]
   }
-  depends_on = [aws_lb_listener_rule.rule,
+
+  depends_on = [
+    aws_lb_listener_rule.rule,
     aws_lb_listener_rule.rule_additional,
     aws_alb_target_group.target_group,
     aws_alb_target_group.target_group_additional,
@@ -415,6 +427,7 @@ resource "aws_appautoscaling_target" "ecs_target" {
     ignore_changes = [min_capacity, max_capacity]
   }
 }
+
 resource "aws_appautoscaling_scheduled_action" "ecs_scheduled_scaling" {
   count = var.schedule_auto_scaling.enabled ? length(var.schedule_auto_scaling.schedules) : 0
 
@@ -435,6 +448,7 @@ resource "aws_appautoscaling_scheduled_action" "ecs_scheduled_scaling" {
     ignore_changes = [start_time]
   }
 }
+
 resource "aws_appautoscaling_policy" "scale_by_cpu_policy" {
   count              = var.cpu_auto_scaling.enabled ? 1 : 0
   name               = "${var.ecs_cluster_name}/${var.ecs_service_name}/scale-by-cpu-policy"
@@ -552,6 +566,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_age_out" {
   }
 
   depends_on = [aws_ecs_service.ecs_service, aws_appautoscaling_policy.sqs_scale_out]
+  tags       = local.common_tags
 }
 
 ###############################################################################
@@ -593,6 +608,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_age_out_sma" {
   }
 
   depends_on = [aws_ecs_service.ecs_service, aws_appautoscaling_policy.sqs_scale_out]
+  tags       = local.common_tags
 }
 
 ###############################################################################
@@ -620,6 +636,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_age_in_ready" {
   }
 
   depends_on = [aws_ecs_service.ecs_service, aws_appautoscaling_policy.sqs_scale_in]
+  tags       = local.common_tags
 }
 
 ###############################################################################
@@ -644,6 +661,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_visible_zero" {
   }
 
   depends_on = [aws_ecs_service.ecs_service]
+  tags       = local.common_tags
 }
 
 resource "aws_cloudwatch_metric_alarm" "sqs_notvisible_zero" {
@@ -665,6 +683,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_notvisible_zero" {
   }
 
   depends_on = [aws_ecs_service.ecs_service]
+  tags       = local.common_tags
 }
 
 ###############################################################################
@@ -686,6 +705,7 @@ resource "aws_cloudwatch_composite_alarm" "sqs_scale_in_safe" {
     aws_cloudwatch_metric_alarm.sqs_visible_zero,
     aws_cloudwatch_metric_alarm.sqs_notvisible_zero
   ]
+  tags = local.common_tags
 }
 
 
@@ -763,10 +783,7 @@ module "ecr" {
       ]
     )
   })
-  tags = {
-    Application = "${var.ecs_service_name}"
-    Environment = "None"
-  }
+  tags = local.common_tags
 }
 
 ###############################################################################
