@@ -223,6 +223,7 @@ variable "cpu_auto_scaling" {
     scale_in_cooldown  = optional(number, 300)
     scale_out_cooldown = optional(number, 300)
     target_value       = optional(number, 70)
+    metric_type        = optional(string, "ECSServiceAverageCPUUtilization")
   })
 }
 

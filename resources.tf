@@ -463,7 +463,7 @@ resource "aws_appautoscaling_policy" "scale_by_cpu_policy" {
     target_value       = var.cpu_auto_scaling.target_value
 
     predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+      predefined_metric_type = var.cpu_auto_scaling.metric_type
     }
   }
   depends_on = [aws_ecs_service.ecs_service, aws_appautoscaling_target.ecs_target]

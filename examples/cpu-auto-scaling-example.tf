@@ -14,7 +14,7 @@ module "cpu_ecs_service" {
     scale_in_cooldown  = 60
     scale_out_cooldown = 60
     target_value       = 70
-
+    metric_type        = "ECSServiceAverageCPUUtilization"
   }
 }
 // 5 resources
